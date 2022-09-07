@@ -3,8 +3,8 @@
  * @version: 
  * @Author: sueRimn
  * @Date: 2021-09-24 16:59:27
- * @LastEditors: sueRimn
- * @LastEditTime: 2021-09-26 21:39:40
+ * @LastEditors: Zhang Jiadong
+ * @LastEditTime: 2022-09-06 22:04:56
  */
 #ifndef FRONTIER_SEARCH_H_
 #define FRONTIER_SEARCH_H_
@@ -22,7 +22,7 @@ struct Frontier {
   double min_distance;
   double cost;
   geometry_msgs::Point initial;
-  geometry_msgs::Point centroid;   /* middle  和 centroid 什么区别 */
+  geometry_msgs::Point centroid;   /* frontier中所有cell的坐标均值。将会被用作navigation goal */
   geometry_msgs::Point middle;
   std::vector<geometry_msgs::Point> points;
 };

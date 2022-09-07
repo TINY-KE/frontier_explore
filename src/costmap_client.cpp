@@ -205,7 +205,7 @@ geometry_msgs::Pose Costmap2DClient::getRobotPose() const
   // get the global pose of the robot
   try {
     tf_->transformPose(global_frame_, robot_pose, global_pose); /* Transform a Stamped Pose into the target frame */
-    // 将base_link【机器人frame】下的robot_pose【已知】变化为map【global_frame_，已知】下的global_pose【计算结果】，tf_这个ros节点是【计算工具】
+    // 将base_link【机器人frame】下的robot_pose【已知】变化为map【global_frame_，已知】下的global_pose【计算结果】，tf_【计算工具】作为tf::TransformListener*的ros节点，是实时从ros中接受tf关系的。
     // 根据robot_pose.setIdentity(); 可知 robot_pose就是机器人 frame的原点？
   } catch (tf::LookupException& ex) {
     ROS_ERROR_THROTTLE(1.0, "No Transform available Error looking up robot "

@@ -20,7 +20,7 @@ FrontierSearch::FrontierSearch(costmap_2d::Costmap2D* costmap,
   : costmap_(costmap)
   , potential_scale_(potential_scale)  
   , gain_scale_(gain_scale)       /* 上面两个做什么的？ */
-  , min_frontier_size_(min_frontier_size)
+  , min_frontier_size_(min_frontier_size)   /* frontier的最小尺寸，单位为米 */
 {
 }
 
@@ -30,7 +30,7 @@ std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position  
 
   // Sanity check that robot is inside costmap bounds before searching   例行检查
   unsigned int mx, my;
-  if (!costmap_->worldToMap(position.x, position.y, mx, my)) {   /* position不就是地图的坐标吗？   而且地图的坐标和世界的坐标有什么区别？？？ 答：是不是 地图中有分辨率（栅格）的原因。*/
+  if (!costmap_->worldToMap(position.x, position.y, mx, my)) {   
     ROS_ERROR("Robot out of costmap bounds, cannot search for frontiers");
     return frontier_list;
   }
@@ -52,7 +52,7 @@ std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position  
   // find closest clear cell to start search
   /* 第一步找到  pos附近的 freespace  作为起点。 */
   unsigned int clear, pos = costmap_->getIndex(mx, my);
-  if (nearestCell(clear, pos, FREE_SPACE, *costmap_)) {   /* 从pos开始  找到 值为FREE_SPACE  的cell，  存储在clear中。   问题是  pos不就是freespace吗？？*/
+  if (nearestCell(clear, pos, FREE_SPACE, *costmap_)) {   /* 找到离pos最近的value=FREE_SPACE的cell，存储在clear中 */
     bfs.push(clear);
   } else {
     bfs.push(pos);
@@ -67,24 +67,25 @@ std::vector<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position  
 
     // iterate over 4-connected neighbourhood
     for (unsigned nbr : nhood4(idx, *costmap_)) {
-      // add to queue all free, unvisited cells, use descending search in case
-      // initialized on non-free cell    /* ？不是find closest clear cell to start search，怎么第一个又成了non free？？ */
-      if (map_[nbr] <= map_[idx] && !visited_flag[nbr]) {                     /* 为什么要满足map_[nbr] <= map_[idx]。  在map_ = costmap_->getCharMap()中储存了什么？？ */
+      // add to queue all “free, unvisited” cells, use descending search in case
+      // initialized on non-free cell   
+      if (  map_[nbr] <= map_[idx]  /* TODO: free的cell：map中value低，状态为free？ */   &&    !visited_flag[nbr]   /* unvisited */) {                     
         visited_flag[nbr] = true;
         bfs.push(nbr);
-        // check if cell is new frontier cell (unvisited, NO_INFORMATION, free
-        // neighbour)
-      } else if (isNewFrontierCell(nbr, frontier_flag)) {
+      } 
+      // check if cell is new frontier cell (unvisited, NO_INFORMATION, free neighbour)
+      else if (isNewFrontierCell(nbr, frontier_flag)) {
         frontier_flag[nbr] = true;
         Frontier new_frontier = buildNewFrontier(nbr /* initial_cell */, pos  /* reference  机器人所在的位置 */, frontier_flag);
-        if (new_frontier.size * costmap_->getResolution() >=
-            min_frontier_size_) {
+        // frontier的长度，要大于0.5米
+        if (new_frontier.size * costmap_->getResolution() >=  min_frontier_size_) {
           frontier_list.push_back(new_frontier);
         }
       }
     }
   }
 
+  /* 第三步，对所有的frontier，按照cost排序*/
   // set costs of frontiers
   for (auto& frontier : frontier_list) {
     frontier.cost = frontierCost(frontier);
@@ -190,10 +191,11 @@ bool FrontierSearch::isNewFrontierCell(unsigned int idx,
   return false;
 }
 
+/* TODO: 可以看看论文里，这两个增益值 怎么定义的？？ */
 double FrontierSearch::frontierCost(const Frontier& frontier)
 {
-  return (potential_scale_ * frontier.min_distance *
-          costmap_->getResolution()) -
-         (gain_scale_ * frontier.size * costmap_->getResolution());
+  return (potential_scale_ /* 3.0 */* frontier.min_distance * costmap_->getResolution()) 
+          -
+         (gain_scale_ /* 1.0 */* frontier.size * costmap_->getResolution());
 }
 }

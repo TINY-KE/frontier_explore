@@ -75,7 +75,8 @@ private:
    */
   void global_pose_rviz( const geometry_msgs::PoseWithCovarianceStamped  &msg );
   void makePlan();
-
+  void rviz_clear();
+  void rviz_goal(const geometry_msgs::Point& goal );
   /**
    * @brief  Publish a frontiers as markers
    */
@@ -113,6 +114,7 @@ private:
   ros::Duration progress_timeout_;
   bool visualize_;
   bool only_viusalize_frontier;  
+
 };
 }
 

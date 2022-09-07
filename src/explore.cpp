@@ -73,6 +73,7 @@ Explore::Explore()
                                                  potential_scale_, gain_scale_,
                                                  min_frontier_size);
 
+  // 通过rviz输入/initialpose，可以修改机器人在map中的global_pose，因此会影响到frontier的搜索。
   global_pose_sub_ = private_nh_.subscribe("/initialpose",1000, &Explore::global_pose_rviz, this);
 
   if (visualize_) {
@@ -89,7 +90,7 @@ Explore::Explore()
   }
 
   exploring_timer_ =
-      relative_nh_.createTimer(ros::Duration(1. / planner_frequency_),
+      relative_nh_.createTimer(ros::Duration(1. / planner_frequency_),   /* ros::Duration为每一周期的时长，当前为3秒一次。 */
                                [this](const ros::TimerEvent&) { makePlan(); });
 }
 
@@ -98,12 +99,14 @@ Explore::~Explore()
   stop();
 }
 
+// 回调函数
 void  Explore::global_pose_rviz( const geometry_msgs::PoseWithCovarianceStamped  &msg ){
   global_pose.position = msg.pose.pose.position;
   global_pose.orientation = msg.pose.pose.orientation;
   ROS_ERROR("Receive robot global pose from rviz");
 }
 
+// 可视化边界
 void Explore::visualizeFrontiers(
     const std::vector<frontier_exploration::Frontier>& frontiers)
 {
@@ -122,6 +125,11 @@ void Explore::visualizeFrontiers(
   green.g = 1.0;
   green.b = 0;
   green.a = 1.0;
+  std_msgs::ColorRGBA yellow;
+  yellow.r = 1.0;
+  yellow.g = 1.0;
+  yellow.b = 0;
+  yellow.a = 1.0;
 
   ROS_DEBUG("visualising %lu frontiers", frontiers.size());
   visualization_msgs::MarkerArray markers_msg;
@@ -139,41 +147,58 @@ void Explore::visualizeFrontiers(
   m.color.b = 255;
   m.color.a = 255;
   // lives forever
-  m.lifetime = ros::Duration(0);
+  m.lifetime = ros::Duration(1.2);
   m.frame_locked = true;
 
   // weighted frontiers are always sorted
-  double min_cost = frontiers.empty() ? 0. : frontiers.front().cost;  /* fontiers为什么有front？？ */
+  double min_cost = frontiers.empty() ? 0. : frontiers.front().cost;  /* frontiers被排序后，front为cost最小的frontier */
 
   m.action = visualization_msgs::Marker::ADD;
   size_t id = 0;
   for (auto& frontier : frontiers) {   /* 对每一个 frontier 分别处理 */
+    // frontier上的每个cell
     m.type = visualization_msgs::Marker::POINTS;
     m.id = int(id);
-    m.pose.position = {};  /* 坐标 是什么时候输入的？ */
+    m.pose.position = {}; 
     m.scale.x = 0.1;
     m.scale.y = 0.1;
     m.scale.z = 0.1;
-    m.points = frontier.points;   /* point和postion  谁决定了坐标？ */
-    if (goalOnBlacklist(frontier.centroid)) {  /* 这是做什么 ？   黑名单 是怎么回事？*/
+    m.points = frontier.points;  
+    if (goalOnBlacklist(frontier.centroid)) {  /* 到打不了的（黑名单中的）边界为红色，否则为蓝色  */
       m.color = red;
     } else {
-      m.color = blue;  /* ？？？？ */
+      m.color = blue;  
     }
     markers.push_back(m);
     ++id;
+    
+    // frontier的initial cell
+    // m.type = visualization_msgs::Marker::SPHERE;
+    // m.id = int(id);
+    // m.pose.position = frontier.initial;
+    // // scale frontier according to its cost (costier frontiers will be smaller)
+    // double scale = std::min(std::abs(min_cost * 0.4 / frontier.cost), 0.5); 
+    // m.scale.x = scale/2.0;
+    // m.scale.y = scale/2.0;
+    // m.scale.z = scale/2.0;
+    // m.points = {};
+    // m.color = green;
+    // markers.push_back(m);
+    // ++id;
+
+    // frontier的centroid cell TODO:  应该将goal也可视化出来。颜色用黄色
     m.type = visualization_msgs::Marker::SPHERE;
     m.id = int(id);
-    m.pose.position = frontier.initial;
+    m.pose.position = frontier.centroid;
     // scale frontier according to its cost (costier frontiers will be smaller)
-    double scale = std::min(std::abs(min_cost * 0.4 / frontier.cost), 0.5);  /* ？？？ 哪来的？？ */
-    m.scale.x = scale;
-    m.scale.y = scale;
-    m.scale.z = scale;
+    double scale2 = std::min(std::abs(min_cost * 0.2 / frontier.cost), 0.5); 
+    m.scale.x = scale2;
+    m.scale.y = scale2;
+    m.scale.z = scale2;
     m.points = {};
-    m.color = green;
+    m.color = yellow;
     markers.push_back(m);
-    ++id;
+    ++id; 
   }
   size_t current_markers_count = markers.size();
 
@@ -188,10 +213,85 @@ void Explore::visualizeFrontiers(
   marker_array_publisher_.publish(markers_msg);
 }
 
+// TODO: 为什么不起作用？？
+void Explore::rviz_goal( const geometry_msgs::Point& goal ){
+    visualization_msgs::Marker m;
+    // Set the frame ID and timestamp.  See the TF tutorials for information on these.
+    m.header.frame_id = costmap_client_.getGlobalFrameID();
+    m.header.stamp = ros::Time::now();
+
+    // Set the namespace and id for this marker.  This serves to create a unique ID
+    // Any marker sent with the same namespace and id will overwrite the old one
+    m.ns = "frontiers";
+    m.id = 0;
+
+    // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
+    m.type = visualization_msgs::Marker::SPHERE;
+
+    // Set the marker action.  Options are ADD, DELETE, and new in ROS Indigo: 3 (DELETEALL)
+    m.action = visualization_msgs::Marker::ADD;
+
+    // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
+    m.pose.position.x = goal.x;
+    m.pose.position.y = goal.y;
+    m.pose.position.z = goal.z;
+    m.pose.orientation.x = 0.0;
+    m.pose.orientation.y = 0.0;
+    m.pose.orientation.z = 0.0;
+    m.pose.orientation.w = 1.0;
+
+    // Set the scale of the marker -- 1x1x1 here means 1m on a side
+    m.scale.x = 4.0;
+    m.scale.y = 3.0;
+    m.scale.z = 3.0;
+
+    // Set the color -- be sure to set alpha to something non-zero!
+    m.color.r = 1.0f;
+    m.color.g = 0.0f;
+    m.color.b = 0.0f;
+    m.color.a = 1.0;
+    m.lifetime = ros::Duration(1.3);
+    marker_array_publisher_.publish(m);
+}
+void Explore::rviz_clear(){
+    visualization_msgs::MarkerArray markers_msg;
+    std::vector<visualization_msgs::Marker>& markers = markers_msg.markers;
+    visualization_msgs::Marker m;
+    
+    int id = 0;
+    m.action = visualization_msgs::Marker::DELETE;
+    m.header.frame_id = costmap_client_.getGlobalFrameID();
+    m.header.stamp = ros::Time::now();
+    m.ns = "frontiers";
+    m.type = visualization_msgs::Marker::SPHERE;
+    m.id = int(id);
+    m.pose.position = costmap_client_.getRobotPose().position;
+    m.scale.x = 1.0;
+    m.scale.y = 1.0;
+    m.scale.z = 1.0;
+    m.points = {};
+    m.color.r = 0;
+    m.color.g = 0;
+    m.color.b = 255;
+    m.color.a = 255;
+    markers.push_back(m);
+    id ++;
+    // lives forever
+    m.lifetime = ros::Duration(0);
+    m.frame_locked = true;
+    for (; id < 50; ++id) {
+      m.id = int(id);
+      markers.push_back(m);
+    }
+    marker_array_publisher_.publish(markers_msg);
+}
 void Explore::makePlan()
 { 
   ROS_DEBUG("start make plan");
-  // find frontiers
+
+
+// ****************一：从costmap中计算出，所有的frontiers
+  // find frontiers   TODO:这是做什么？ 如果不实时更新global_pose（only_viusalize_frontier为true时），则frontier选择时，始终是离起始点最近的frontier。
   if(!only_viusalize_frontier)
     global_pose = costmap_client_.getRobotPose();
   // get frontiers sorted according to cost
@@ -203,18 +303,22 @@ void Explore::makePlan()
 
   if (frontiers.empty()) {
     stop();
+    // TODO:应该发送一个空topic，清空rviz中的marker
+    rviz_clear();
     return;
   }
 
-  // publish frontiers as visualization markers
+  // publish froniers as visualization markers
   if (visualize_) {
     visualizeFrontiers(frontiers);
   }
 
-  // find non blacklisted frontier   
-  auto frontier =/* 从头到尾的寻找，那么  */
+
+// ****************二：从frontiers找到，不在黑名单的target_position
+  // find non blacklisted（TODO: 有些黑名单中的goal，可能过后又能抵达了呢？？） frontier   
+  auto frontier =
       std::find_if_not(frontiers.begin(), frontiers.end(),
-                       [this](const frontier_exploration::Frontier& f) {
+                       [this](const frontier_exploration::Frontier& f  /* 形参。对应的实参为frontiers中的各项 */) {
                          return goalOnBlacklist(f.centroid);  
                          /* 这个函数返回的是true时，f.centroid在黑名单。   */
                         /* 又因为是find if not， 所以为false的时候，return。*/
@@ -222,31 +326,47 @@ void Explore::makePlan()
   if (frontier == frontiers.end()) {
     stop();
     return;
-    }
+  }
   geometry_msgs::Point target_position = frontier->centroid;  /* 关键： 终点是边界的中心。 但可视化是 最近点。  */
 
+
+
+// ****************三：对target_position进行最后的检查：（1）target_position是否是新的goal  （2）到新target_position的距离，是否比旧target更近。满足其中一条，则切换到新target。
   // time out if we are not making any progress
   bool same_goal = prev_goal_ == target_position;
   prev_goal_ = target_position;
+  // TODO: 原来：新search到的frontier，只要比当前正前往的distance近，就换目标，是不合理的。应该有有个比例。
+  // 例如改为（prev_distance_ / frontier->min_distance） > 1.4   
+  // TODO:  是不是 exploring_timer_ 这个周期函数中，已经设置的stop()，也能起到这个作用
   if (!same_goal || prev_distance_ > frontier->min_distance) {
     // we have different goal or we made some progress
     last_progress_ = ros::Time::now();
     prev_distance_ = frontier->min_distance;
   }
-  // black list if we've made no progress for a long time  黑名单：  如果一个goal无法到达（或者花了很久 也无法到达），则加入 黑名单。
-  if (ros::Time::now() - last_progress_ > progress_timeout_) {
+  
+
+// ****************四：黑名单：如果一个goal无法到达（或者花了很久 也无法到达），则加入 黑名单。
+  // black list if we've made no progress for a long time  
+  if (ros::Time::now() - last_progress_/* 只有!same_goal时，last_progress_才会被重置 */ 
+            > progress_timeout_) 
+  {
     frontier_blacklist_.push_back(target_position);
     ROS_DEBUG("Adding current goal to black list");
     makePlan();
     return;
   }
-// qi qiu shagn tian  bang bang wo 
+
   // we don't need to do anything if we still pursuing the same goal   检查目标店是否和上一次重复
   if (same_goal) {
     return;
   }
 
-  // send goal to move_base if we have something new to pursue  发送目标点goal给movebase
+
+
+// ****************五：TODO:   可视化目标点goal
+  rviz_goal(target_position);
+// ****************六： movebase发送目标点goal
+  // send goal to move_base if we have something new to pursue 
   move_base_msgs::MoveBaseGoal goal;
   goal.target_pose.pose.position = target_position;
   goal.target_pose.pose.orientation.w = 1.;
@@ -258,6 +378,8 @@ void Explore::makePlan()
                 const move_base_msgs::MoveBaseResultConstPtr& result) {
         reachedGoal(status, result, target_position);
       });
+
+
 }
 
 bool Explore::goalOnBlacklist(const geometry_msgs::Point& goal)
@@ -286,7 +408,8 @@ void Explore::reachedGoal(const actionlib::SimpleClientGoalState& status,
     frontier_blacklist_.push_back(frontier_goal);
     ROS_DEBUG("Adding current goal to black list");   
   }
-
+  
+  // TODO: 这是做什么？
   // find new goal immediatelly regardless of planning frequency.
   // execute via timer to prevent dead lock in move_base_client (this is
   // callback for sendGoal, which is called in makePlan). the timer must live

@@ -44,6 +44,8 @@ endif()
 
 ## Specify additional locations of header files
 include_directories(
+  /home/zhjd/active_ws/src/algorithm/m-explore(explore_lite)/explore/include/explore/
+  /home/zhjd/active_ws/src/algorithm/m-explore(explore_lite)/explore/include/
   ${catkin_INCLUDE_DIRS}
   include
 )

@@ -88,7 +88,7 @@ std::vector<unsigned int> nhood8(unsigned int idx,
  * @param costmap Reference to map data
  * @return True if a cell with the requested value was found
  */
-bool nearestCell(unsigned int& result, unsigned int start, unsigned char val,    /* 目的是找到  值为value的cell */
+bool nearestCell(unsigned int& result, unsigned int start, unsigned char val,    /* 目的是找到地图值（区间0~255）等于value的cell，并存储在result中 */
                  const costmap_2d::Costmap2D& costmap)
 {
   const unsigned char* map = costmap.getCharMap();
