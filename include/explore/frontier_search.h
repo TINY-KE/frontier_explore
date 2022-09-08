@@ -4,7 +4,7 @@
  * @Author: sueRimn
  * @Date: 2021-09-24 16:59:27
  * @LastEditors: Zhang Jiadong
- * @LastEditTime: 2022-09-06 22:04:56
+ * @LastEditTime: 2022-09-08 11:50:34
  */
 #ifndef FRONTIER_SEARCH_H_
 #define FRONTIER_SEARCH_H_
@@ -23,7 +23,7 @@ struct Frontier {
   double cost;
   geometry_msgs::Point initial;
   geometry_msgs::Point centroid;   /* frontier中所有cell的坐标均值。将会被用作navigation goal */
-  geometry_msgs::Point middle;
+  geometry_msgs::Point middle;   /* frontier上离robot最近的cell。 */
   std::vector<geometry_msgs::Point> points;
 };
 

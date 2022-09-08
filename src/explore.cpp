@@ -164,7 +164,7 @@ void Explore::visualizeFrontiers(
     m.scale.y = 0.1;
     m.scale.z = 0.1;
     m.points = frontier.points;  
-    if (goalOnBlacklist(frontier.centroid)) {  /* 到打不了的（黑名单中的）边界为红色，否则为蓝色  */
+    if (goalOnBlacklist(frontier.middle)) {  /* 到打不了的（黑名单中的）边界为红色，否则为蓝色  */
       m.color = red;
     } else {
       m.color = blue;  
@@ -189,7 +189,7 @@ void Explore::visualizeFrontiers(
     // frontier的centroid cell TODO:  应该将goal也可视化出来。颜色用黄色
     m.type = visualization_msgs::Marker::SPHERE;
     m.id = int(id);
-    m.pose.position = frontier.centroid;
+    m.pose.position = frontier.middle;
     // scale frontier according to its cost (costier frontiers will be smaller)
     double scale2 = std::min(std::abs(min_cost * 0.2 / frontier.cost), 0.5); 
     m.scale.x = scale2;
@@ -319,7 +319,7 @@ void Explore::makePlan()
   auto frontier =
       std::find_if_not(frontiers.begin(), frontiers.end(),
                        [this](const frontier_exploration::Frontier& f  /* 形参。对应的实参为frontiers中的各项 */) {
-                         return goalOnBlacklist(f.centroid);  
+                         return goalOnBlacklist(f.middle);  
                          /* 这个函数返回的是true时，f.centroid在黑名单。   */
                         /* 又因为是find if not， 所以为false的时候，return。*/
                        });
@@ -327,7 +327,7 @@ void Explore::makePlan()
     stop();
     return;
   }
-  geometry_msgs::Point target_position = frontier->centroid;  /* 关键： 终点是边界的中心。 但可视化是 最近点。  */
+  geometry_msgs::Point target_position = frontier->middle;  /* 关键： 终点是边界的中心。 但可视化是 最近点。  */
 
 
 

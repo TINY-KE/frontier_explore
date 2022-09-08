@@ -4,7 +4,7 @@
   <param name="costmap_topic" value="map"/>
   <param name="costmap_updates_topic" value="map_updates"/>
   <param name="visualize" value="true"/>
-  <param name="planner_frequency" value="1.0"/>   <!-- 边界及nbv搜索的频率 -->
+  <param name="planner_frequency" value="3.0"/>   <!-- 边界及nbv搜索的频率 -->
   <param name="progress_timeout" value="30.0"/><!-- 如果一个goal超过progress_timeout秒，仍无法到达），则加入将goal黑名单。 -->
   <param name="potential_scale" value="3.0"/>
   <param name="orientation_scale" value="0.0"/>
